@@ -1,21 +1,12 @@
-import { atomWithStorage } from 'jotai/utils';
+// lib/atoms.ts
+import { atom } from 'jotai';
 
-export interface Session {
+export type TranslationCode = 'kjv' | 'asv' | 'web';
+
+export interface Profile {
   id: string;
-  date: string;
-  title: string;
-  image?: string;
-  summary?: string;
-  facts?: string[];
-  furtherImpact?: string;
+  displayName: string;
+  preferredTranslation: TranslationCode;
 }
 
-export const sessionsAtom = atomWithStorage<Session[]>('sessions', []);
-
-export interface PersonalizationAnswers {
-  q1: string;
-  q2: string;
-  q3: string[];
-}
-
-export const personalizationAtom = atomWithStorage<PersonalizationAnswers | null>('personalization', null);
+export const profileAtom = atom<Profile | null>(null);

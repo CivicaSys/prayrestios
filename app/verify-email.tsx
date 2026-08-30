@@ -1,10 +1,10 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 
-export default function Pray() {
+export default function VerifyEmail() {
   return (
     <View>
-      <Text>Pray</Text>
+      <Text>Verify Email</Text>
     </View>
   );
 }

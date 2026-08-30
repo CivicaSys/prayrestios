@@ -15,19 +15,12 @@ export default function RootLayout() {
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      setIsSignedIn(!!data.session && !!data.session.user);
+      setIsSignedIn(!!data.session?.user);
     };
     checkSession();
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      const isAuthenticated = !!session && !!session.user;
-      console.log('Auth state change:', event, 'isAuthenticated:', isAuthenticated);
-      
-      // Update state first
-      setIsSignedIn(isAuthenticated);
-      
-      // Only handle automatic navigation for sign-in
-      // Sign-out navigation is handled manually in components
-      if (event === 'SIGNED_IN' && isAuthenticated) {
+      setIsSignedIn(!!session?.user);
+      if (event === 'SIGNED_IN' && session?.user) {
         router.replace('/(tabs)');
       }
     });
@@ -42,27 +35,21 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={DefaultTheme}>
-      <Stack
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack screenOptions={{ headerShown: false }}>
         {isSignedIn ? (
           <>
+            <Stack.Screen name="onboarding" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="reset-password" />
             <Stack.Screen name="+not-found" />
           </>
         ) : (
           <>
             <Stack.Screen name="index" />
-            <Stack.Screen name="onboarding1" />
-            <Stack.Screen name="onboarding2" />
-            <Stack.Screen name="onboarding3" />
-            <Stack.Screen name="onboardingPathos" />
-            <Stack.Screen name="onboardingEthos" />
-            <Stack.Screen name="onboardingLogos" />
-            <Stack.Screen name="personalization" />
-            <Stack.Screen name="personalizingscreen" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="login" />
+            <Stack.Screen name="verify-email" />
+            <Stack.Screen name="forgot-password" />
             <Stack.Screen name="+not-found" />
           </>
         )}
