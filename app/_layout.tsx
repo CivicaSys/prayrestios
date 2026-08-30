@@ -7,6 +7,7 @@ import * as Linking from 'expo-linking';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 import 'react-native-reanimated';
 
 export default function RootLayout() {
@@ -43,6 +44,9 @@ export default function RootLayout() {
       const isRecovery = await handleAuthDeepLink(url);
       if (isRecovery) {
         router.replace('/reset-password');
+      } else if (type === 'recovery') {
+        skipNextSignedInRedirect.current = false;
+        Alert.alert('Link expired', 'This password reset link is no longer valid. Please request a new one.');
       }
     };
     Linking.getInitialURL().then(handleUrl);

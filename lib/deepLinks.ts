@@ -22,6 +22,11 @@ export async function handleAuthDeepLink(url: string): Promise<boolean> {
   if (type !== 'recovery' || !accessToken || !refreshToken) {
     return false;
   }
-  await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-  return true;
+  try {
+    const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (error) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
