@@ -52,12 +52,35 @@ from a trusted source, never from the model.
 
 **Two-stage pipeline inside the `get-prayer-verses` edge function:**
 
-1. **Reference identification (LLM).** Send the prayer text to Claude (see model choice
-   below) with a structured-output schema constraining the response to, per verse:
-   `{ book, chapter, verse_start, verse_end, explanation }`. The system prompt explicitly
-   instructs the model not to produce verse text — only references and a one-sentence
-   explanation of relevance. The `translation` code the user has selected is passed as
-   context only for register/tone, not because the LLM sources text.
+1. **Need detection + reference identification (LLM, one call).** Send the prayer text to
+   Claude (see model choice below) with a structured-output schema of:
+   ```
+   {
+     detected_needs: string[],   // e.g. ["grief", "fear"] — see vocabulary below
+     verses: [
+       { book, chapter, verse_start, verse_end, explanation }
+     ]
+   }
+   ```
+   The system prompt makes emotional/spiritual need detection an explicit, named step
+   the model must do *before* choosing verses — not an implicit judgment folded into
+   "explanation" — and requires each verse's `explanation` to tie back to one of the
+   `detected_needs`. Example system prompt shape:
+
+   > "First, identify the primary emotional or spiritual need(s) reflected in this
+   > prayer — for example: anger, grief, fear, temptation, doubt, loneliness,
+   > gratitude, crisis, guidance-seeking, thanksgiving. Name one to three. Then select
+   > 3-5 Bible verses that speak directly to those specific needs. For each verse,
+   > return its reference and a one-sentence explanation connecting it to the
+   > need(s) you identified. Do not return verse text — reference and explanation
+   > only."
+
+   The vocabulary above is illustrative, not a closed enum — the model can name a need
+   not listed if it fits better; `detected_needs` is stored as free-form `text[]`, not a
+   Postgres enum, so it isn't a schema bottleneck as real usage reveals more categories.
+   The model still must not produce verse text — only needs, references, and
+   explanations. The `translation` code the user has selected is passed as context only
+   for register/tone, not because the LLM sources text.
 2. **Verse text resolution (Bible API).** For each reference returned, the function
    resolves it against the **wldeh/bible-api** static JSON CDN
    (`https://cdn.jsdelivr.net/gh/wldeh/bible-api/bibles/{version}/books/{book}/chapters/{chapter}/verses/{verse}.json`;
@@ -68,6 +91,11 @@ from a trusted source, never from the model.
    always this fetched text — never anything the LLM produced.** If a reference the LLM
    returns fails to resolve (bad book slug, out-of-range verse), that verse is dropped from
    the result set rather than falling back to LLM-generated text.
+
+`detected_needs` is persisted on the `prayers` row (§5) and returned to the client
+alongside the resolved verses, so the Pray screen can show a brief empathetic
+acknowledgment (§7) before/with the verse overlay — not just used internally to steer
+verse selection.
 
 **LLM provider.** Default to **Claude Sonnet 5** (`claude-sonnet-5`) for the reference
 call — good balance of theological/nuance quality against per-request cost and latency for
@@ -119,10 +147,17 @@ columns are unchanged from that source.
     `push` boolean alongside `email`/`sms` per category
   - All other columns (`display_name`, `avatar_url`, `reminder_enabled`, `reminder_time`,
     `reminder_days`, `phone_number`, timestamps) unchanged
-- **`prayers`, `prayer_verses`, `journal_entries`, `prayer_requests`,
-  `prayer_request_recipients`, `prayer_request_responses`, `friends`, `invitations`** —
-  unchanged from `prPrompt.md`. Note for `prayer_verses.translation`: stores which of
-  `kjv`/`asv`/`web` was actually used, and `verse_text` is always Bible-API-sourced per §3.
+- **`prayers`**
+  - `detected_needs` (text[], nullable) — the emotional/spiritual need(s) the LLM
+    identified for this prayer (§3), e.g. `['grief', 'fear']`. Free-form, not a Postgres
+    enum. Populated by `get-prayer-verses` alongside the verse fetch; stays null if that
+    call fails (matches the PWA prompt's existing "AI fetch failed" error state — the
+    prayer itself is still saved).
+  - All other columns unchanged from `prPrompt.md`.
+- **`prayer_verses`, `journal_entries`, `prayer_requests`, `prayer_request_recipients`,
+  `prayer_request_responses`, `friends`, `invitations`** — unchanged from `prPrompt.md`.
+  Note for `prayer_verses.translation`: stores which of `kjv`/`asv`/`web` was actually
+  used, and `verse_text` is always Bible-API-sourced per §3.
 
 RLS policies are unchanged from the PWA prompt's "Row-Level Security (RLS) Policies"
 section — they describe ownership/visibility rules independent of client platform.
@@ -130,8 +165,9 @@ section — they describe ownership/visibility rules independent of client platf
 ## 6. Edge Functions
 
 - **`get-prayer-verses`** — rewritten per §3's two-stage pipeline. Input: prayer text,
-  `preferred_translation`. Output: array of `{reference, translation, verse_text,
-  explanation, sort_order}` persisted to `prayer_verses` and returned to the client.
+  `preferred_translation`. Output: `detected_needs` (persisted to `prayers`) plus an
+  array of `{reference, translation, verse_text, explanation, sort_order}` persisted to
+  `prayer_verses` — both returned to the client in one response.
 - **`send-notification`** (renamed/generalized from the PWA prompt's
   `send-prayer-request-email` + `send-sms-notification`) — single fan-out function that,
   given an event (new response, new private request) and a recipient, checks
@@ -153,8 +189,13 @@ auth-state listener in `app/_layout.tsx`, `expo-router` stacks).
 Screen behavior (input methods, Amen flow, verse overlay with Listen toggle, journal
 prompt, share-as-request flow, History filters/expand, Requests feed tabs, Friends,
 Settings, onboarding steps) matches the PWA prompt's "Core Features & Screens" section
-directly, with two native substitutions: the voice button drives native STT instead of
-Web Speech API, and the "Listen" toggle drives native TTS instead of `SpeechSynthesis`.
+directly, with three changes from that section: the voice button drives native STT
+instead of Web Speech API, the "Listen" toggle drives native TTS instead of
+`SpeechSynthesis`, and the verse overlay opens with a brief, warm acknowledgment line
+derived from `detected_needs` (§3) before the first verse — e.g. "It sounds like you're
+carrying some grief and fear right now." — rendered from a small static phrase-template
+map keyed by need (not another LLM call), falling back to no acknowledgment line if
+`detected_needs` is empty or the verse call failed.
 
 **Design system:** carry forward the PWA prompt's "Warm & Peaceful" palette, typography
 (Playfair Display/Lora headings, Inter/Source Sans 3 body), rounded corners, warm shadows,
@@ -168,8 +209,9 @@ Each phase is independently shippable and testable before moving to the next.
 **Phase 1 — Foundation & core prayer loop**
 Email/password auth (signup, email verification, login, password reset), profile
 bootstrap, streamlined onboarding (translation picker only), Pray screen (text input +
-Amen — voice deferred to Phase 2), the two-stage AI+Bible-API verse pipeline end to end,
-verse overlay with Listen toggle (native TTS), History screen (list, expand, mark
+Amen — voice deferred to Phase 2), the two-stage AI+Bible-API verse pipeline end to end
+including emotional/spiritual need detection (§3), verse overlay with the empathetic
+acknowledgment line and Listen toggle (native TTS), History screen (list, expand, mark
 answered), RLS on `profiles`/`prayers`/`prayer_verses`.
 
 **Phase 2 — Voice, journaling, sharing**
