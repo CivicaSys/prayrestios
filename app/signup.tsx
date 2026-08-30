@@ -5,65 +5,58 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'reac
 
 export default function SignUp() {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
+    if (!displayName.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
     if (password !== confirm) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: displayName.trim() } },
+    });
     setLoading(false);
-    if (error) Alert.alert('Error', error.message);
-    else router.replace('/(tabs)');
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+    if (!data.session) {
+      router.replace('/verify-email');
+    }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.kywBox}>
-        <Text style={styles.kywText}>AN</Text>
-      </View>
-      <Text style={styles.title}>Sign up</Text>
-      <Text style={styles.subtitle}>so you can start your recommended journey</Text>
-      <Text style={styles.label}>Email<Text style={styles.required}>*</Text></Text>
+      <Text style={styles.title}>Create your account</Text>
+      <Text style={styles.subtitle}>Begin your prayer journey</Text>
+      <TextInput style={styles.input} placeholder="Your name" value={displayName} onChangeText={setDisplayName} />
       <TextInput
         style={styles.input}
-        placeholder="ras@gmail.com"
+        placeholder="you@example.com"
         keyboardType="email-address"
         autoCapitalize="none"
         value={email}
         onChangeText={setEmail}
       />
-      <Text style={styles.label}>Password<Text style={styles.required}>*</Text></Text>
-      <TextInput
-        style={styles.input}
-        placeholder="enter a secure password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="confirm your password"
-        secureTextEntry
-        value={confirm}
-        onChangeText={setConfirm}
-      />
-      <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading} activeOpacity={0.8}>
+      <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+      <TextInput style={styles.input} placeholder="Confirm password" secureTextEntry value={confirm} onChangeText={setConfirm} />
+      <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? 'Signing Up...' : 'Sign Up'}</Text>
       </TouchableOpacity>
-      <View style={styles.policyRow}>
-        <TouchableOpacity><Text style={styles.policyLink}>Privacy Policy</Text></TouchableOpacity>
-        <TouchableOpacity><Text style={styles.policyLink}>Terms of Service</Text></TouchableOpacity>
-        <TouchableOpacity><Text style={styles.policyLink}>EULA</Text></TouchableOpacity>
-      </View>
       <View style={styles.footer}>
         <TouchableOpacity onPress={() => router.push('/login')}>
-          <Text style={styles.footerLink}>Already A User?</Text>
+          <Text style={styles.footerLink}>Already have an account?</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -71,18 +64,12 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex:1, justifyContent:'center', alignItems:'center', padding:24, backgroundColor:'#fff' },
-  kywBox: { backgroundColor: '#7CFFB2', borderRadius: 20, paddingVertical: 14, paddingHorizontal: 24, marginTop: 24, marginBottom: 24, borderWidth: 1, borderColor: '#222' },
-  kywText: { fontSize: 20, fontWeight: 'bold', color: '#222', textAlign: 'center' },
-  title: { fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 8, color: '#111' },
-  subtitle: { fontSize: 20, color: '#111', textAlign: 'center', marginBottom: 24, fontWeight: '400' },
-  label: { fontSize: 16, fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: 8, color: '#111' },
-  required: { color: 'red', fontSize: 16 },
-  input: { backgroundColor: '#f3f3f3', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 16, color: '#222', width: '100%' },
-  button: { backgroundColor: '#000', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 18, marginTop: 18, width: '100%', alignItems: 'center', marginBottom: 18 },
-  buttonText: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
-  policyRow: { flexDirection: 'row', justifyContent: 'center', marginVertical: 8 },
-  policyLink: { marginHorizontal: 8, fontSize: 14, color: '#000', textDecorationLine: 'underline' },
-  footer: { marginTop: 32, alignItems: 'center', width: '100%' },
-  footerLink: { color: '#000', fontSize: 16, fontWeight: 'bold', textDecorationLine: 'underline' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#FDF8F0' },
+  title: { fontSize: 30, fontWeight: 'bold', textAlign: 'center', marginBottom: 8, color: '#3D2E1F' },
+  subtitle: { fontSize: 18, color: '#6B5A45', textAlign: 'center', marginBottom: 24 },
+  input: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 16, width: '100%' },
+  button: { backgroundColor: '#D4A853', paddingVertical: 16, borderRadius: 20, width: '100%', alignItems: 'center', marginBottom: 12 },
+  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  footer: { marginTop: 24, alignItems: 'center', width: '100%' },
+  footerLink: { color: '#3D2E1F', fontSize: 15, fontWeight: 'bold', textDecorationLine: 'underline' },
 });
