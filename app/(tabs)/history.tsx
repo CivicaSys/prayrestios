@@ -46,15 +46,21 @@ export default function HistoryScreen() {
   const toggleExpand = async (prayerId: string) => {
     if (expandedId === prayerId) {
       setExpandedId(null);
+      setNoteDraft('');
       return;
     }
     setExpandedId(prayerId);
+    setNoteDraft('');
     if (!versesByPrayer[prayerId]) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('prayer_verses')
         .select('id, reference, verse_text, explanation, sort_order')
         .eq('prayer_id', prayerId)
         .order('sort_order');
+      if (error) {
+        Alert.alert('Error', 'Could not load verses for this prayer.');
+        return;
+      }
       setVersesByPrayer((prev) => ({ ...prev, [prayerId]: data ?? [] }));
     }
   };
