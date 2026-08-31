@@ -22,11 +22,15 @@ export default function RootLayout() {
   const skipNextSignedInRedirect = useRef(false);
 
   const loadProfile = async (userId: string): Promise<void> => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, display_name, preferred_translation')
       .eq('id', userId)
       .single();
+    if (error) {
+      console.error('Failed to load profile:', error);
+      return;
+    }
     if (data) {
       setProfile({
         id: data.id,
@@ -59,6 +63,7 @@ export default function RootLayout() {
       }
       if (event === 'SIGNED_OUT') {
         setProfile(null);
+        router.replace('/');
       }
     });
 

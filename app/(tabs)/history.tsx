@@ -33,8 +33,12 @@ export default function HistoryScreen() {
       .from('prayers')
       .select('id, content, is_answered, answered_note, created_at')
       .order('created_at', { ascending: false });
-    if (!error && data) setPrayers(data);
     setLoading(false);
+    if (error) {
+      Alert.alert('Error', 'Could not load your prayer history.');
+      return;
+    }
+    if (data) setPrayers(data);
   }, []);
 
   useFocusEffect(

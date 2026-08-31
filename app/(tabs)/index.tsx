@@ -37,9 +37,9 @@ export default function PrayScreen() {
         onChangeText={setContent}
       />
       <TouchableOpacity
-        style={[styles.amenButton, (!content.trim() || submitting) && styles.amenButtonDisabled]}
+        style={[styles.amenButton, (!content.trim() || submitting || !profile) && styles.amenButtonDisabled]}
         onPress={handleAmen}
-        disabled={!content.trim() || submitting}
+        disabled={!content.trim() || submitting || !profile}
       >
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.amenButtonText}>Amen</Text>}
       </TouchableOpacity>
