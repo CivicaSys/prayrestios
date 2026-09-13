@@ -84,6 +84,7 @@ export default function RootLayout() {
       }
       if (event === 'SIGNED_OUT') {
         setProfile(null);
+        setHasEntitlement(true);
         router.replace('/');
       }
     });
