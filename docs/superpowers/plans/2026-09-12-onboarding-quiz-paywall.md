@@ -388,7 +388,7 @@ git commit -m "feat: add quiz screens and quizAnswersAtom"
 // lib/entitlement.ts
 import Purchases from 'react-native-purchases';
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
+export const PREMIUM_ENTITLEMENT_ID = 'premium';
 
 export interface EntitlementProvider {
   hasActiveEntitlement(): Promise<boolean>;
@@ -560,6 +560,7 @@ git commit -m "feat: wire RevenueCat identity linking and quiz-answer handoff in
 
 ```tsx
 // app/paywall.tsx
+import { PREMIUM_ENTITLEMENT_ID } from '@/lib/entitlement';
 import { supabase } from '@/lib/supabase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -609,7 +610,7 @@ export default function Paywall() {
   const handleRestore = async () => {
     try {
       const info = await Purchases.restorePurchases();
-      if ('premium' in info.entitlements.active) {
+      if (PREMIUM_ENTITLEMENT_ID in info.entitlements.active) {
         router.replace(isResubscribe ? '/(tabs)' : '/signup');
       } else {
         Alert.alert('Nothing to restore', 'No previous purchases found on this Apple ID.');
@@ -766,13 +767,18 @@ In the `onAuthStateChange` listener's `SIGNED_IN` branch, add the same entitleme
 ```typescript
       if (event === 'SIGNED_IN' && session?.user) {
         await loadProfile(session.user.id);
-        setHasEntitlement(PAYWALL_ENABLED ? await entitlementProvider.hasActiveEntitlement() : true);
+        const entitled = PAYWALL_ENABLED ? await entitlementProvider.hasActiveEntitlement() : true;
+        setHasEntitlement(entitled);
         if (skipNextSignedInRedirect.current) {
           skipNextSignedInRedirect.current = false;
-        } else {
+        } else if (entitled) {
           const onboarded = await hasCompletedOnboarding(session.user.id);
           router.replace(onboarded ? '/(tabs)' : '/onboarding');
         }
+        // else: not entitled -- leave navigation to the isSignedIn/hasEntitlement
+        // effect below, which redirects to the resubscribe paywall. Firing both
+        // this replace() and that effect's replace() for the same event would
+        // race (briefly showing tabs/onboarding before the paywall redirect wins).
       }
 ```
 

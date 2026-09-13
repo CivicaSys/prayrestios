@@ -1,3 +1,4 @@
+import { PAYWALL_ENABLED } from '@/lib/featureFlags';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,7 +11,7 @@ export default function Welcome() {
       <Text style={styles.title}>PrayRest</Text>
       <Text style={styles.subtitle}>Tell God about what's on your heart. Then rest, assured.</Text>
       <View style={styles.flexGrow} />
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/signup')}>
+      <TouchableOpacity style={styles.button} onPress={() => router.push(PAYWALL_ENABLED ? '/quiz-goals' : '/signup')}>
         <Text style={styles.buttonText}>Get Started</Text>
       </TouchableOpacity>
       <Pressable onPress={() => router.push('/login')}>
