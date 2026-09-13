@@ -1,7 +1,10 @@
 // app/_layout.tsx
 import { profileAtom, type Profile } from '@/lib/atoms';
 import { handleAuthDeepLink, parseAuthDeepLink } from '@/lib/deepLinks';
+import { RevenueCatEntitlementProvider } from '@/lib/entitlement';
+import { PAYWALL_ENABLED } from '@/lib/featureFlags';
 import { hasCompletedOnboarding } from '@/lib/onboarding';
+import { configurePurchasesIfEnabled } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -13,13 +16,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import 'react-native-reanimated';
 
+const entitlementProvider = new RevenueCatEntitlementProvider();
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  const [hasEntitlement, setHasEntitlement] = useState<boolean | null>(null);
   const setProfile = useSetAtom(profileAtom);
   const skipNextSignedInRedirect = useRef(false);
+
+  useEffect(() => {
+    configurePurchasesIfEnabled();
+  }, []);
 
   const loadProfile = async (userId: string): Promise<void> => {
     const { data, error } = await supabase
@@ -45,7 +55,12 @@ export default function RootLayout() {
       const { data } = await supabase.auth.getSession();
       const signedIn = !!data.session?.user;
       setIsSignedIn(signedIn);
-      if (signedIn) await loadProfile(data.session!.user.id);
+      if (signedIn) {
+        await loadProfile(data.session!.user.id);
+        setHasEntitlement(PAYWALL_ENABLED ? await entitlementProvider.hasActiveEntitlement() : true);
+      } else {
+        setHasEntitlement(true);
+      }
     };
     checkSession();
 
@@ -54,12 +69,18 @@ export default function RootLayout() {
 
       if (event === 'SIGNED_IN' && session?.user) {
         await loadProfile(session.user.id);
+        const entitled = PAYWALL_ENABLED ? await entitlementProvider.hasActiveEntitlement() : true;
+        setHasEntitlement(entitled);
         if (skipNextSignedInRedirect.current) {
           skipNextSignedInRedirect.current = false;
-        } else {
+        } else if (entitled) {
           const onboarded = await hasCompletedOnboarding(session.user.id);
           router.replace(onboarded ? '/(tabs)' : '/onboarding');
         }
+        // else: not entitled -- leave navigation to the isSignedIn/hasEntitlement
+        // effect below, which redirects to the resubscribe paywall. Firing both
+        // this replace() and that effect's replace() for the same event would
+        // race (briefly showing tabs/onboarding before the paywall redirect wins).
       }
       if (event === 'SIGNED_OUT') {
         setProfile(null);
@@ -90,7 +111,13 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!loaded || isSignedIn === null) {
+  useEffect(() => {
+    if (isSignedIn && hasEntitlement === false) {
+      router.replace('/paywall?context=resubscribe');
+    }
+  }, [isSignedIn, hasEntitlement]);
+
+  if (!loaded || isSignedIn === null || hasEntitlement === null) {
     return null;
   }
 
@@ -102,11 +129,16 @@ export default function RootLayout() {
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="reset-password" />
+            <Stack.Screen name="paywall" />
             <Stack.Screen name="+not-found" />
           </>
         ) : (
           <>
             <Stack.Screen name="index" />
+            <Stack.Screen name="quiz-goals" />
+            <Stack.Screen name="quiz-source" />
+            <Stack.Screen name="quiz-commitment" />
+            <Stack.Screen name="paywall" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="login" />
             <Stack.Screen name="verify-email" />
