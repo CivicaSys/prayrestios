@@ -10,3 +10,11 @@ export interface Profile {
 }
 
 export const profileAtom = atom<Profile | null>(null);
+
+export interface QuizAnswers {
+  goals: string[];
+  source: string;
+  committed: boolean;
+}
+
+export const quizAnswersAtom = atom<Partial<QuizAnswers>>({});
