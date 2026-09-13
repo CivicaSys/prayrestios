@@ -63,8 +63,10 @@ export default function Paywall() {
   const handleBack = async () => {
     if (isResubscribe) {
       await supabase.auth.signOut();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/');
     }
   };
 

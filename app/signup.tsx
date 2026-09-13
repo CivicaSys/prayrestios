@@ -1,8 +1,7 @@
 import { quizAnswersAtom } from '@/lib/atoms';
-import { linkPurchasesIdentity } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
-import { useAtomValue } from 'jotai';
+import { useAtom } from 'jotai';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -13,7 +12,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const quizAnswers = useAtomValue(quizAnswersAtom);
+  const [quizAnswers, setQuizAnswers] = useAtom(quizAnswersAtom);
 
   const handleSignUp = async () => {
     if (!displayName.trim()) {
@@ -40,9 +39,7 @@ export default function SignUp() {
       Alert.alert('Error', error.message);
       return;
     }
-    if (data.user) {
-      await linkPurchasesIdentity(data.user.id);
-    }
+    setQuizAnswers({});
     if (!data.session) {
       router.replace('/verify-email');
     }

@@ -4,7 +4,7 @@ import { handleAuthDeepLink, parseAuthDeepLink } from '@/lib/deepLinks';
 import { RevenueCatEntitlementProvider } from '@/lib/entitlement';
 import { PAYWALL_ENABLED } from '@/lib/featureFlags';
 import { hasCompletedOnboarding } from '@/lib/onboarding';
-import { configurePurchasesIfEnabled } from '@/lib/purchases';
+import { configurePurchasesIfEnabled, linkPurchasesIdentity } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -26,7 +26,12 @@ export default function RootLayout() {
   const [hasEntitlement, setHasEntitlement] = useState<boolean | null>(null);
   const setProfile = useSetAtom(profileAtom);
   const skipNextSignedInRedirect = useRef(false);
+  const inPasswordRecovery = useRef(false);
 
+  // Must run before the session-check effect below: Purchases.configure() has to
+  // complete before any getCustomerInfo()/hasActiveEntitlement() call, or the SDK
+  // call fails open (silently granting access). React fires effects in declaration
+  // order, so this effect must stay declared first.
   useEffect(() => {
     configurePurchasesIfEnabled();
   }, []);
@@ -68,6 +73,7 @@ export default function RootLayout() {
       setIsSignedIn(!!session?.user);
 
       if (event === 'SIGNED_IN' && session?.user) {
+        await linkPurchasesIdentity(session.user.id);
         await loadProfile(session.user.id);
         const entitled = PAYWALL_ENABLED ? await entitlementProvider.hasActiveEntitlement() : true;
         setHasEntitlement(entitled);
@@ -94,12 +100,15 @@ export default function RootLayout() {
       const { type } = parseAuthDeepLink(url);
       if (type === 'recovery') {
         skipNextSignedInRedirect.current = true;
+        inPasswordRecovery.current = true;
       }
       const isRecovery = await handleAuthDeepLink(url);
       if (isRecovery) {
         router.replace('/reset-password');
+        inPasswordRecovery.current = false;
       } else if (type === 'recovery') {
         skipNextSignedInRedirect.current = false;
+        inPasswordRecovery.current = false;
         Alert.alert('Link expired', 'This password reset link is no longer valid. Please request a new one.');
       }
     };
@@ -113,7 +122,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isSignedIn && hasEntitlement === false) {
+    if (isSignedIn && hasEntitlement === false && !inPasswordRecovery.current) {
       router.replace('/paywall?context=resubscribe');
     }
   }, [isSignedIn, hasEntitlement]);
